@@ -4,7 +4,7 @@
 
 struct PID_PidObject PID_Array[3];
 
-void PID_Calculate(struct PID_pidObject *pidObject)
+void PID_Calculate(struct PID_PidObject *pidObject)
 {
   uint64_t time = TIME_Millis();
   uint64_t dt = time - pidObject->lastTime;
@@ -29,16 +29,16 @@ void PID_Calculate(struct PID_pidObject *pidObject)
   pidObject->lastError = error;
 }
 
-void PID_Calculate()
+void PID_CalculateAll(void)
 {
   for(uint8_t i = 0; i < sizeof(PID_Array); ++i) {
-    PID_calculate(PID_Array[i]);
+    PID_Calculate(&PID_Array[i]);
   }
 }
 
-void PID_Setup()
+void PID_Setup(void)
 {
   for(uint8_t i = 0; i < sizeof(PID_Array); ++i) {
-    PID_Array[i]->lastTime = TIME_Millis();
+    PID_Array[i].lastTime = TIME_Millis();
   }
 }

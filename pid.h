@@ -3,9 +3,13 @@
 
 #include "config.h"
 
-enum PID_ArrayIndex { PID_ROLL = 0, PID_PITCH, PID_YAW };
+enum PID_ArrayIndex {
+	PID_ROLL = 0,
+	PID_PITCH,
+	PID_YAW
+};
 
-extern struct PID_PidObject {
+struct PID_PidObject {
   float measured;
 
   float setPoint;
@@ -19,9 +23,9 @@ extern struct PID_PidObject {
   float integral;
 
   float pidOutput;
-} PID_Array[3];
+};
 
-void PID_Calculate(struct PID_pidObject *pidObject);
-void PID_Calculate(void);
+void PID_Calculate(struct PID_PidObject *pidObject);
+void PID_CalculateAll(void);
 
 #endif
