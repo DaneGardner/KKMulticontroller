@@ -5,6 +5,11 @@
 
 /*** BEGIN DEFINITIONS ***/
 #define EEPROM_DATA_START_POS 0      // Settings save offset in eeprom
+#ifdef SAVE_CENTER
+#define CONFIG_VERSION        43
+#else
+#define CONFIG_VERSION        42
+#endif
 /*** END DEFINITIONS ***/
 
 /*** BEGIN TYPES ***/
@@ -14,6 +19,10 @@ struct config {
   uint8_t RollGyroDirection;
   uint8_t PitchGyroDirection;
   uint8_t YawGyroDirection;
+  uint16_t CenterRollValue;
+  uint16_t CenterPitchValue;
+  uint16_t CenterCollValue;
+  uint16_t CenterYawValue;
 };
 /*** END TYPES ***/
 

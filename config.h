@@ -9,6 +9,9 @@
 #include <util/delay.h>
 
 #include "typedefs.h"
+
+#define SAVE_CENTER
+
 #include "io_cfg.h"
 
 /* Multicopter Type */
