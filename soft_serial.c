@@ -35,6 +35,8 @@ http://arduiniana.org.
 #define _DEBUG 0
 #define _DEBUG_PIN1 11
 #define _DEBUG_PIN2 13
+#define __DELAY_BACKWARD_COMPATIBLE__
+
 // 
 // Includes
 // 
@@ -46,13 +48,6 @@ http://arduiniana.org.
 #include "io_cfg.h"
 
 #ifdef SERIAL_PORT
-
-#define ECHO
-
-// static data
-//static uint8_t ss_receivePin;
-//static uint8_t ss_receiveBitMask;
-//static uint8_t ss_transmitBitMask;
 
 static uint16_t ss_rx_delay_centering;
 static uint16_t ss_rx_delay_intrabit;
@@ -71,6 +66,7 @@ static volatile uint8_t ss_receive_buffer_head;
 #define digitalPinToPCICRbit(p) (((p) <= 7) ? 2 : (((p) <= 13) ? 0 : 1))
 #define digitalPinToPCMSK(p)    (((p) <= 7) ? (&PCMSK2) : (((p) <= 13) ? (&PCMSK0) : (((p) <= 21) ? (&PCMSK1) : ((uint8_t *)0))))
 #define digitalPinToPCMSKbit(p) (((p) <= 7) ? (p) : (((p) <= 13) ? ((p) - 8) : ((p) - 14)))
+
 //
 // Lookup table
 //
@@ -83,6 +79,8 @@ typedef struct _DELAY_TABLE
   int16_t tx_delay;
 } DELAY_TABLE;
 
+#define TUNED_DELAY
+#ifdef TUNED_DELAY
 #if F_CPU == 16000000
 
 static const DELAY_TABLE PROGMEM table[] = 
@@ -109,8 +107,8 @@ const int XMIT_START_ADJUSTMENT = 5;
 static const DELAY_TABLE table[] PROGMEM = 
 {
   //  baud    rxcenter    rxintra    rxstop  tx
-  { 115200,   1,          5,         5,      3,      },
-  { 57600,    1,          15,        15,     13,     },
+  { 115200,   1,          5,         5,      6,      },
+  { 57600,    1,          15,        15,     15,     },
   { 38400,    2,          25,        26,     23,     },
   { 31250,    7,          32,        33,     29,     },
   { 28800,    11,         35,        35,     32,     },
@@ -154,6 +152,27 @@ const int XMIT_START_ADJUSTMENT = 6;
 #error This version of SoftwareSerial supports only 20, 16 and 8MHz processors
 
 #endif
+#else //TUNED_DELAY
+static const DELAY_TABLE PROGMEM table[] =
+{
+  //  baud    rxcenter    rxintra    rxstop  tx
+  { 115200,   3,          21,        21,     1.0/115200*1000*1000,     },
+  { 57600,    20,         43,        43,     1.0/57600*1000*1000,     },
+  { 38400,    37,         73,        73,     1.0/38400*1000*1000,     },
+  { 31250,    45,         89,        89,     1.0/31250*1000*1000,     },
+  { 28800,    46,         98,        98,     1.0/28800*1000*1000,     },
+  { 19200,    71,         148,       148,    1.0/19200*1000*1000,    },
+  { 14400,    96,         197,       197,    1.0/14400*1000*1000,    },
+  { 9600,     146,        297,       297,    1.0/9600*1000*1000,    },
+  { 4800,     296,        595,       595,    1.0/4800*1000*1000,    },
+  { 2400,     592,        1189,      1189,   1.0/2400*1000*1000,   },
+  { 1200,     1187,       2379,      2379,   1.0/1200*1000*1000,   },
+  { 300,      4759,       9523,      9523,   1.0/300*1000*1000,   },
+};
+
+const int XMIT_START_ADJUSTMENT = 4;
+
+#endif
 
 //
 // Statics
@@ -181,6 +200,7 @@ inline void DebugPulse(uint8_t pin, uint8_t count)
 #endif
 }
 
+#ifdef TUNED_DELAY
 /* static */ 
 inline void ss_tunedDelay(uint16_t delay) { 
   uint8_t tmp=0;
@@ -194,9 +214,12 @@ inline void ss_tunedDelay(uint16_t delay) {
     : "0" (delay)
     );
 }
+#else
+inline void ss_tunedDelay(uint16_t delay) { 
+    _delay_us( delay );
+}
+#endif
 
-// This function sets the current object as the "listening"
-// one and returns true if it replaces another 
 uint8_t ss_listen()
 {
   uint8_t oldSREG = SREG;
@@ -280,11 +303,6 @@ void ss_recv()
 #endif
       ss_buffer_overflow = true;
     }
-
-#ifdef ECHO
-    ss_write( d );
-
-#endif
   }
   
 #if GCC_VERSION < 40302
@@ -357,8 +375,6 @@ void ss_setTX(uint8_t reg, uint8_t bit)
 {
   SER_TX_DIR = OUTPUT;
   SER_TX = HIGH;
-  //ss_transmitBitMask = ~bit & 0xff;
-  //_transmitPortRegister = reg;
 }
 
 void ss_setRX(uint8_t reg, uint8_t bit)
@@ -366,9 +382,6 @@ void ss_setRX(uint8_t reg, uint8_t bit)
   SER_RX_DIR = INPUT;
   if (!ss_inverse_logic)
     SER_RX= HIGH;  // pullup for normal logic!
-  //ss_receivePin = SER_RX;
-  //ss_receiveBitMask = ~bit & 0xFF;
-  //_receivePortRegister = reg;
 }
 
 void ss_begin(long speed)
@@ -391,13 +404,11 @@ void ss_begin(long speed)
   // Set up RX interrupts, but only if we have a valid RX baud rate
   if (ss_rx_delay_stopbit)
   {
-#ifdef XXXX
     if (digitalPinToPCICR(ss_receivePin))
     {
-	//*digitalPinToPCICR(ss_receivePin) |= _BV(digitalPinToPCICRbit(ss_receivePin));
-	//*digitalPinToPCMSK(ss_receivePin) |= _BV(digitalPinToPCMSKbit(ss_receivePin));
+	*digitalPinToPCICR(ss_receivePin) |= _BV(digitalPinToPCICRbit(ss_receivePin));
+	*digitalPinToPCMSK(ss_receivePin) |= _BV(digitalPinToPCMSKbit(ss_receivePin));
     }
-#endif
     ss_tunedDelay(ss_tx_delay); // if we were low this establishes the end
   }
 
@@ -411,8 +422,8 @@ void ss_begin(long speed)
 
 void ss_end()
 {
-    //if (digitalPinToPCMSK(ss_receivePin))
-    //*digitalPinToPCMSK(ss_receivePin) &= ~_BV(digitalPinToPCMSKbit(ss_receivePin));
+    if (digitalPinToPCMSK(ss_receivePin))
+	*digitalPinToPCMSK(ss_receivePin) &= ~_BV(digitalPinToPCMSKbit(ss_receivePin));
 }
 
 // Read data from buffer
@@ -441,9 +452,34 @@ int ss_available()
 
 size_t ss_write_str( char *buf )
 {
-    while( buf != 0 ) {
+    while( *buf != 0 ) {
 	ss_write( *buf++ );
+	ss_tunedDelay(ss_tx_delay<<4); 
     }
+}
+
+size_t ss_write_num( int n )
+{
+    char buf[11];
+    int i;
+
+    buf[10] = 0;
+
+    if( n != 0 ) {
+	for( i=9; i>0 && n>0; i-- )
+	    {
+		buf[i] = n%10 + '0';
+		n = n/10;
+	    }
+    } else {
+	buf[9] = '0';
+	i=8;
+    }
+
+    /* any good C book will tell you not to use the */
+    /* value of a for loop variable after a loop. That's */
+    /* really good advice however it's ignored here */
+    ss_write_str( &buf[++i] );
 }
 
 size_t ss_write(uint8_t b)
@@ -451,8 +487,6 @@ size_t ss_write(uint8_t b)
   if (ss_tx_delay == 0) {
     return 0;
   }
-
-  LED ^= 1;
 
   uint8_t oldSREG = SREG;
   cli();  // turn off interrupts for a clean txmit
@@ -484,7 +518,6 @@ size_t ss_write(uint8_t b)
         ss_tx_pin_write(HIGH); // send 1
       else
         ss_tx_pin_write(LOW); // send 0
-    
       ss_tunedDelay(ss_tx_delay);
     }
 

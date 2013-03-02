@@ -80,8 +80,7 @@ OBJDIR = ./.obj/
 
 
 # List C source files here. (C dependencies are automatically generated.)
-SRC = $(TARGET).c motors.c gyros.c receiver.c settings.c pid.c
-
+SRC = $(TARGET).c motors.c gyros.c receiver.c settings.c pid.c soft_serial.c
 
 # List C++ source files here. (C dependencies are automatically generated.)
 CPPSRC = 
@@ -273,10 +272,10 @@ LDFLAGS += $(PRINTF_LIB) $(SCANF_LIB) $(MATH_LIB)
 # Type: avrdude -c ?
 # to get a full listing.
 #
-AVRDUDE_PROGRAMMER = usbasp-clone
+AVRDUDE_PROGRAMMER = usbasp
 
 # com1 = serial port. Use lpt1 to connect to parallel port.
-AVRDUDE_PORT = usb    # programmer connected to serial device
+AVRDUDE_PORT = /dev/ttyUSB0    # programmer connected to serial device
 
 AVRDUDE_WRITE_FLASH = -U flash:w:$(TARGET).hex
 #AVRDUDE_WRITE_EEPROM = -U eeprom:w:$(TARGET).eep

@@ -3,6 +3,7 @@
 #include "settings.h"
 #include "receiver.h"
 #include "motors.h"
+#include "soft_serial.h"
 
 bool Armed;
 
@@ -21,6 +22,26 @@ static void setup()
   receiverSetup();
   gyrosSetup();
   motorsSetup();
+#ifdef SERIAL_PORT
+  soft_serial( PORTD, 7, PORTB, 0, false );
+  ss_begin(57600);
+
+  ss_write_str( "\r\n\r\nConfig.RollGyroDirection   = " );
+  ss_write_num( Config.RollGyroDirection );
+  ss_write_str( "\r\nConfig.PitchGyroDirection  = " );
+  ss_write_num( Config.PitchGyroDirection );
+  ss_write_str( "\r\nConfig.YawGyroDirection    = " );
+  ss_write_num( Config.YawGyroDirection );
+  ss_write_str( "\r\nConfig.CenterRollValue     = " );
+  ss_write_num( Config.CenterRollValue );
+  ss_write_str( "\r\nConfig.CenterPitchValue    = " );
+  ss_write_num( Config.CenterPitchValue );
+  ss_write_str( "\r\nConfig.CenterCollValue     = " );
+  ss_write_num( Config.CenterCollValue );
+  ss_write_str( "\r\nConfig.CenterYawValue      = " );
+  ss_write_num( Config.CenterYawValue );
+  ss_write( '\r\n' );
+#endif
 
   LED_DIR   = OUTPUT;
   LED    = 0;
@@ -43,12 +64,12 @@ static void setup()
    * Flash the LED once at power on
    */
   LED = 1;
-  _delay_ms(150);
+  _delay_ms(250);
   LED = 0;
 
   sei();
 
-  _delay_ms(1500);
+  _delay_ms(2000);
 
   ReadGainPots();
   ReadGainPots();
@@ -56,13 +77,38 @@ static void setup()
   bool rollMin =  (GainInADC[ROLL]  < (ADC_MAX * 5) / 100);    // 5% threshold
   bool yawMin =   (GainInADC[YAW]   < (ADC_MAX * 5) / 100);    // 5% threshold
 
-  if(pitchMin && rollMin && yawMin) { settingsClearAll(); }             // Clear config
-  else if(pitchMin && yawMin)       { motorsIdentify(); }               // Motor identification
+  if(pitchMin && rollMin && yawMin) { 
+      #ifdef SERIAL_PORT
+      ss_write_str( "\r\nClearing settings" );
+      #endif
+      settingsClearAll(); 
+  }             // Clear config
+  else if(pitchMin && yawMin)       { 
+      #ifdef SERIAL_PORT
+      ss_write_str( "\r\nMotor Identify" );
+      #endif
+      motorsIdentify(); 
+  }               // Motor identification
 //  else if(pitchMin && rollMin)      { }                                 // Future use
 //  else if(rollMin && yawMin)        { }                                 // Future use
-  else if(pitchMin)                 { receiverStickCenter(); }          // Stick Centering Test
-  else if(rollMin)                  { gyrosReverse(); }                 // Gyro direction reversing
-  else if(yawMin)                   { motorsThrottleCalibration(); }    // ESC throttle calibration
+  else if(pitchMin)                 { 
+      #ifdef SERIAL_PORT
+      ss_write_str( "\r\nStick Center" );
+      #endif
+      receiverStickCenter(); 
+  }          // Stick Centering Test
+  else if(rollMin)                  { 
+      #ifdef SERIAL_PORT
+      ss_write_str( "\r\nGyro reverse" );
+      #endif
+      gyrosReverse(); 
+  }                 // Gyro direction reversing
+  else if(yawMin)                   { 
+      #ifdef SERIAL_PORT
+      ss_write_str( "\r\nThrottle Calibrate" );
+      #endif
+      motorsThrottleCalibration(); 
+  }    // ESC throttle calibration
 }
 
 static inline void loop()
@@ -446,6 +492,7 @@ static inline void loop()
       MotorOut6 = 500;
     }
 #elif defined(TRI_COPTER)
+
     MotorOut1 = 0;
     MotorOut2 = 0;
     MotorOut3 = 0;
@@ -468,6 +515,7 @@ static inline void loop()
 
   LED = 0;
   output_motor_ppm();
+
 }
 
 int main()
@@ -475,6 +523,6 @@ int main()
   setup();
 
   while(1)
-    loop();
+      loop();
   return 1;
 }
