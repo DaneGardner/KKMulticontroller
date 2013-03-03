@@ -17,10 +17,10 @@ static void setup()
 {
   MCUCR = _BV(PUD);  // Disable hardware pull-up
 
+  settingsSetup();
   receiverSetup();
   gyrosSetup();
   motorsSetup();
-  settingsSetup();
 
   LED_DIR   = OUTPUT;
   LED    = 0;

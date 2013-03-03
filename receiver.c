@@ -1,4 +1,5 @@
 #include "receiver.h"
+#include "settings.h"
 
 /*** BEGIN VARIABLES ***/
 int16_t RxInRoll;
@@ -15,6 +16,11 @@ uint16_t RxChannel1;
 uint16_t RxChannel2;
 uint16_t RxChannel3;
 uint16_t RxChannel4;
+
+uint16_t CenterRollValue;
+uint16_t CenterPitchValue;
+uint16_t CenterCollValue;
+uint16_t CenterYawValue;
 
 #ifdef TWIN_COPTER
 int16_t RxInOrgPitch;
@@ -126,6 +132,11 @@ void receiverSetup()
   RX_COLL   = 0;
   RX_YAW    = 0;
   
+  CenterRollValue = Config.CenterRollValue;
+  CenterPitchValue = Config.CenterPitchValue;
+  CenterCollValue = Config.CenterCollValue;
+  CenterYawValue = Config.CenterYawValue;
+
   /*
    * timer1 (16bit) - run at 8MHz, used to measure Rx pulses
    * and to control ESC/servo pulse
@@ -171,16 +182,17 @@ void RxGetChannels()
   uint8_t t = 0xff;
   do {
     asm volatile("mov %0, %1":"=r" (i_sreg),"=r" (t)::"memory");
-    RxInRoll = fastdiv8(RxChannel1 - 1520 * 8);
-    RxInPitch = fastdiv8(RxChannel2 - 1520 * 8);
+    RxInRoll = fastdiv8(RxChannel1 - CenterRollValue * 8);
+    RxInPitch = fastdiv8(RxChannel2 - CenterPitchValue * 8);
     RxInCollective = fastdiv8(RxChannel3 - 1120 * 8);
-    RxInYaw = fastdiv8(RxChannel4 - 1520 * 8);
+    RxInYaw = fastdiv8(RxChannel4 - CenterYawValue * 8);
   } while(i_sreg != t);
 #ifdef TWIN_COPTER
   RxInOrgPitch = RxInPitch;
 #endif
 }
 
+#ifndef SAVE_CENTER
 void receiverStickCenter()
 {
   uint8_t i;
@@ -194,3 +206,38 @@ void receiverStickCenter()
     }
   }
 }
+#else
+void receiverStickCenter()
+{
+  uint8_t i;
+  int16_t RawRoll  = 0;
+  int16_t RawColl  = 0;
+  int16_t RawYaw   = 0;
+  int16_t RawPitch = 0;
+  
+  LED = 1;
+  _delay_ms( 500 );
+
+  for( i=0; i<8; i++ )
+  {
+      RxGetChannels();
+      LED ^= 1;
+      RawRoll  += RxChannel1/8;
+      RawPitch += RxChannel2/8;
+      RawColl  += RxChannel3/8;
+      RawYaw   += RxChannel4/8;
+      _delay_ms(100);
+  }
+
+  Config.CenterRollValue = RawRoll/8;
+  Config.CenterPitchValue = RawPitch/8;
+  Config.CenterCollValue = RawColl/8;
+  Config.CenterYawValue = RawYaw/8;
+  Save_Config_to_EEPROM();
+
+  while(1) {
+      LED ^= 1;
+      _delay_ms( 1000 );
+  }
+}
+#endif
