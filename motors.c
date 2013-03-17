@@ -20,9 +20,14 @@ void motorsSetup()
   M2_DIR    = OUTPUT;
   M3_DIR    = OUTPUT;
   M4_DIR    = OUTPUT;
+#ifdef SERIAL_PORT
+  SER_TX_DIR = OUTPUT;
+  SER_RX_DIR = INPUT;
+#else
   M5_DIR    = OUTPUT;
   M6_DIR    = OUTPUT;
-  
+#endif
+
   /*
    * timer0 (8bit) - run at 8MHz, used to control ESC pulses
    * We use 8Mhz instead of 1MHz (1 usec) to avoid alignment jitter.
@@ -75,6 +80,7 @@ void output_motor_ppm()
     MotorOut4 = 0;
   else if(MotorOut4 > t)
     MotorOut4 = t;
+#ifndef SERIAL_PORT
   if(MotorOut5 < 0)
     MotorOut5 = 0;
   else if(MotorOut5 > t)
@@ -83,6 +89,7 @@ void output_motor_ppm()
     MotorOut6 = 0;
   else if(MotorOut6 > t)
     MotorOut6 = t;
+#endif /* SERIAL_PORT */
 
   t = 1000;
   MotorOut1+= t;
@@ -90,26 +97,32 @@ void output_motor_ppm()
   MotorOut2+= t;
   MotorOut3+= t;
   MotorOut4+= t;
+#ifndef SERIAL_PORT
   MotorOut5+= t;
   MotorOut6+= t;
+#endif /* SERIAL_PORT */
 #endif
 
   MotorOut1<<= 3;
   MotorOut2<<= 3;
   MotorOut3<<= 3;
   MotorOut4<<= 3;
+#ifndef SERIAL_PORT
   MotorOut5<<= 3;
   MotorOut6<<= 3;
+#endif /* SERIAL_PORT */
 
   /*
    * Mirror M3, M4 to M5, M6, when possible, for hardware PPM
    * support. The compiler will throw away the above operations on
    * M5 and M6 when it sees these.
    */
+#ifndef SERIAL_PORT
 #if defined(DUAL_COPTER) || defined(TRI_COPTER) || defined(QUAD_COPTER) || defined(QUAD_X_COPTER) || defined(Y4_COPTER)
   MotorOut5 = MotorOut3;
   MotorOut6 = MotorOut4;
 #endif
+#endif /* SERIAL_PORT */
 
   /*
    * We can use timer compare output mode to provide jitter-free
@@ -165,14 +178,25 @@ void output_motor_ppm()
    *
    * We hope that TCNT0 and TCNT1 are always synchronized.
    */
+#ifdef SERIAL_PORT
+  OCR0A = MotorStartTCNT1 + MotorOut3;
+  OCR0B = MotorStartTCNT1 + MotorOut4;
+#else
   OCR0A = MotorStartTCNT1 + MotorOut5;
   OCR0B = MotorStartTCNT1 + MotorOut6;
+#endif
 
   do {
     cli();
     t = TCNT1;
     sei();
     t-= MotorStartTCNT1;
+#ifdef SERIAL_PORT
+    if(t + 0xff >= MotorOut3)
+      TCCR0A&= ~_BV(COM0A0);  /* Clear pin on match */
+    if(t + 0xff >= MotorOut4)
+      TCCR0A&= ~_BV(COM0B0);  /* Clear pin on match */
+#else
     if(t >= MotorOut3)
       M3 = 0;
     if(t >= MotorOut4)
@@ -181,6 +205,7 @@ void output_motor_ppm()
       TCCR0A&= ~_BV(COM0A0);  /* Clear pin on match */
     if(t + 0xff >= MotorOut6)
       TCCR0A&= ~_BV(COM0B0);  /* Clear pin on match */
+#endif
     t-= ((2000 + PWM_LOW_PULSE_US) << 3) - 0xff;
   } while(t < 0);
 
@@ -259,6 +284,7 @@ void output_motor_ppm()
 //  TCCR0B = _BV(CS00) | _BV(FOC0A) | _BV(FOC0B);
 #endif
 
+#ifndef SERIAL_PORT
   /*
    * Wait for the on time so we can turn on the software pins.
    */
@@ -293,6 +319,7 @@ void output_motor_ppm()
 #elif defined(QUAD_COPTER) || defined(QUAD_X_COPTER) || defined(Y4_COPTER) || defined(HEX_COPTER) || defined(Y6_COPTER)
   M3 = 1;
   M4 = 1;
+#endif
 #endif
   /*
    * We leave with the output pins ON.

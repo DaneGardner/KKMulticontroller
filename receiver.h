@@ -14,6 +14,9 @@
 // limits the maximum stick collective (range 80->100  100=Off)
 // this allows gyros to stabilise better when full throttle applied
 #define MAX_COLLECTIVE 1000      // 95
+
+#define DEFAULT_CENTER 1520
+
 /*** END DEFINES ***/
 
 

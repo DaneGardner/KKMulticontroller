@@ -3,11 +3,6 @@
 
 #include <stdint.h>
 
-//set bit	or PORTB |= (1<<3); 
-//#define set_bit(port, bit) ((port) |= (uint8_t)(1 << bit))
-//clear bit
-//#define clr_bit(port, bit) ((port) &= (uint8_t)~(1 << bit))	
-
 #define INPUT 0
 #define OUTPUT 1
 
@@ -29,34 +24,5 @@ typedef struct
 
 
 #define REGISTER_BIT(rg,bt) ((volatile _io_reg*)&rg)->bit##bt
-
-
-/* Example:
-
-#define BUTTON_PIN  REGISTER_BIT(PINB,3)
-#define LED_PORT    REGISTER_BIT(PORTB,4)
-
-#define BUTTON_DIR  REGISTER_BIT(DDRB,3)
-#define LED_DIR     REGISTER_BIT(DDRB,4)
- 
-main() 
-{
-	uint8_t is_button = BUTTON_PIN;
-	// this actually is expanded by the C preprocessor to:
-	// uint8_t is_button = ((volatile _io_reg*)&PINB)->bit3; 
-
-  LED_DIR = 1;
-	// which after the preprocessor looks like: 
-	// ((volatile _io_reg*)&DDRB)->bit4 = 1; 
-
-  BUTTON_DIR = 0;
-
-  while (1) {
-    LED_PORT = BUTTON_PIN;
-  }
-} 
-
-*/
-
 
 #endif

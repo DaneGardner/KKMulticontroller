@@ -9,6 +9,11 @@
 #include <util/delay.h>
 
 #include "typedefs.h"
+
+#define SAVE_CENTER
+#define SERIAL_PORT
+#define BT_SERIAL_PORT
+
 #include "io_cfg.h"
 
 /* Multicopter Type */

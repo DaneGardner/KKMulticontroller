@@ -2,6 +2,7 @@
 
 #include <avr/eeprom.h>
 #include "gyros.h"
+#include "receiver.h"
 
 struct config Config;
 
@@ -34,13 +35,17 @@ void Set_EEPROM_Default_Config()
   Config.RollGyroDirection  = GYRO_REVERSED;
   Config.PitchGyroDirection  = GYRO_REVERSED;
   Config.YawGyroDirection    = GYRO_NORMAL;
+  Config.CenterRollValue     = DEFAULT_CENTER;
+  Config.CenterPitchValue    = DEFAULT_CENTER;
+  Config.CenterCollValue     = DEFAULT_CENTER;
+  Config.CenterYawValue      = DEFAULT_CENTER;
 }
 
 void Initial_EEPROM_Config_Load()
 {
   // load up last settings from EEPROM
-  if(eeprom_read_byte((uint8_t *)EEPROM_DATA_START_POS) != 42) {
-    Config.setup = 42;
+  if(eeprom_read_byte((uint8_t *)EEPROM_DATA_START_POS) != CONFIG_VERSION) {
+    Config.setup = CONFIG_VERSION;
     Set_EEPROM_Default_Config();
     // write to eeProm
     Save_Config_to_EEPROM();
