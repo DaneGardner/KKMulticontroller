@@ -47,49 +47,25 @@ http://arduiniana.org.
 uint8_t ss_listen(void);
 void ss_recv(void);
 uint8_t ss_rx_pin_read(void);
-void ss_setTX(uint8_t reg, uint8_t bit);
-void ss_setRX(uint8_t reg, uint8_t bit);
+void ss_setTX(void);
+void ss_setRX(void);
 void ss_end(void);
 int ss_read(void);
 uint8_t ss_isListening(void);
 void ss_tunedDelay(uint16_t delay);
 int ss_available(void);
-void soft_serial(uint8_t rxReg, uint8_t rxBit, uint8_t txReg, uint8_t txBit, uint8_t inverse_logic);
+void soft_serial(uint8_t inverse_logic);
 void ss_begin(long speed);
 size_t ss_write_str(char *buf);
 size_t ss_write(uint8_t b);
+size_t ss_write_num( int n );
+size_t ss_write_hex( int n );
 int ss_peek(void);
 void ss_flush(void);
-
-#ifdef XXXX
-class SoftwareSerial
-{
-private:
-  static SoftwareSerial *active_object;
-
-  // private methods
-  void tx_pin_write(uint8_t pin_state);
-
-  // private static method for timing
-
-public:
-  // public methods
-  ~SoftwareSerial();
-  void end();
-  bool overflow() { bool ret = _buffer_overflow; _buffer_overflow = false; return ret; }
-
-  virtual size_t write(uint8_t byte);
-  virtual int available();
-  virtual void flush();
-  
-  //using Print::write;
-
-  // public only for easy access by interrupt handlers
-};
-#endif
+void setLinvorRate( int32_t rate );
+void menus( void );
 
 #define HIGH 1
 #define LOW  0
-
 
 #endif

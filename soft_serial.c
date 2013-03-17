@@ -33,19 +33,21 @@ http://arduiniana.org.
 // oscilloscope or logic analyzer.  Beware: it also slightly modifies
 // the bit times, so don't rely on it too much at high baud rates
 #define _DEBUG 0
-#define _DEBUG_PIN1 11
-#define _DEBUG_PIN2 13
-#define __DELAY_BACKWARD_COMPATIBLE__
+#define _DEBUG_PIN1 REGISTER_BIT(PORTB,3)
+#define _DEBUG_PIN2 REGISTER_BIT(PORTB,5)
 
 // 
 // Includes
 // 
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
+#include <string.h>
 #include "soft_serial.h"
 
 #include "config.h"
 #include "io_cfg.h"
+#include "settings.h"
+#include "gyros.h"
 
 #ifdef SERIAL_PORT
 
@@ -62,11 +64,6 @@ static char ss_receive_buffer[SS_MAX_RX_BUFF];
 static volatile uint8_t ss_receive_buffer_tail;
 static volatile uint8_t ss_receive_buffer_head;
 
-#define digitalPinToPCICR(p)    (((p) >= 0 && (p) <= 21) ? (&PCICR) : ((uint8_t *)0))
-#define digitalPinToPCICRbit(p) (((p) <= 7) ? 2 : (((p) <= 13) ? 0 : 1))
-#define digitalPinToPCMSK(p)    (((p) <= 7) ? (&PCMSK2) : (((p) <= 13) ? (&PCMSK0) : (((p) <= 21) ? (&PCMSK1) : ((uint8_t *)0))))
-#define digitalPinToPCMSKbit(p) (((p) <= 7) ? (p) : (((p) <= 13) ? ((p) - 8) : ((p) - 14)))
-
 //
 // Lookup table
 //
@@ -79,8 +76,6 @@ typedef struct _DELAY_TABLE
   int16_t tx_delay;
 } DELAY_TABLE;
 
-#define TUNED_DELAY
-#ifdef TUNED_DELAY
 #if F_CPU == 16000000
 
 static const DELAY_TABLE PROGMEM table[] = 
@@ -152,27 +147,6 @@ const int XMIT_START_ADJUSTMENT = 6;
 #error This version of SoftwareSerial supports only 20, 16 and 8MHz processors
 
 #endif
-#else //TUNED_DELAY
-static const DELAY_TABLE PROGMEM table[] =
-{
-  //  baud    rxcenter    rxintra    rxstop  tx
-  { 115200,   3,          21,        21,     1.0/115200*1000*1000,     },
-  { 57600,    20,         43,        43,     1.0/57600*1000*1000,     },
-  { 38400,    37,         73,        73,     1.0/38400*1000*1000,     },
-  { 31250,    45,         89,        89,     1.0/31250*1000*1000,     },
-  { 28800,    46,         98,        98,     1.0/28800*1000*1000,     },
-  { 19200,    71,         148,       148,    1.0/19200*1000*1000,    },
-  { 14400,    96,         197,       197,    1.0/14400*1000*1000,    },
-  { 9600,     146,        297,       297,    1.0/9600*1000*1000,    },
-  { 4800,     296,        595,       595,    1.0/4800*1000*1000,    },
-  { 2400,     592,        1189,      1189,   1.0/2400*1000*1000,   },
-  { 1200,     1187,       2379,      2379,   1.0/1200*1000*1000,   },
-  { 300,      4759,       9523,      9523,   1.0/300*1000*1000,   },
-};
-
-const int XMIT_START_ADJUSTMENT = 4;
-
-#endif
 
 //
 // Statics
@@ -200,7 +174,6 @@ inline void DebugPulse(uint8_t pin, uint8_t count)
 #endif
 }
 
-#ifdef TUNED_DELAY
 /* static */ 
 inline void ss_tunedDelay(uint16_t delay) { 
   uint8_t tmp=0;
@@ -214,11 +187,6 @@ inline void ss_tunedDelay(uint16_t delay) {
     : "0" (delay)
     );
 }
-#else
-inline void ss_tunedDelay(uint16_t delay) { 
-    _delay_us( delay );
-}
-#endif
 
 uint8_t ss_listen()
 {
@@ -261,10 +229,19 @@ void ss_recv()
 #endif  
 
   uint8_t d = 0;
-
+  uint8_t val = 0;
   // If RX line is high, then we don't see any start bit
   // so interrupt is probably not for us
-  if (ss_inverse_logic ? ss_rx_pin_read() : !ss_rx_pin_read())
+  #if defined(SERIAL_RX_M3)
+  val = REGISTER_BIT( PINB, 0 );
+  #elif defined(SERIAL_RX_M4)
+  val = REGISTER_BIT( PIND, 7 );
+  #elif defined(SERIAL_RX_M5)
+  val = REGISTER_BIT( PIND, 6 );
+  #elif defined(SERIAL_RX_M6)
+  val = REGISTER_BIT( PIND, 5 );
+  #endif
+  if (ss_inverse_logic ? val : !val )
   {
     // Wait approximately 1/2 of a bit width to "center" the sample
     ss_tunedDelay(ss_rx_delay_centering);
@@ -276,16 +253,27 @@ void ss_recv()
       ss_tunedDelay(ss_rx_delay_intrabit);
       DebugPulse(_DEBUG_PIN2, 1);
       uint8_t noti = ~i;
-      if (ss_rx_pin_read())
+      #if defined(SERIAL_RX_M3)
+      val = REGISTER_BIT( PINB, 0 );
+      #elif defined(SERIAL_RX_M4)
+      val = REGISTER_BIT( PIND, 7 );
+      #elif defined(SERIAL_RX_M5)
+      val = REGISTER_BIT( PIND, 6 );
+      #elif defined(SERIAL_RX_M6)
+      val = REGISTER_BIT( PIND, 5 );
+      #endif
+      
+      if ( val )
         d |= i;
       else // else clause added to ensure function timing is ~balanced
         d &= noti;
+    
     }
 
     // skip the stop bit
     ss_tunedDelay(ss_rx_delay_stopbit);
     DebugPulse(_DEBUG_PIN2, 1);
-
+    
     if (ss_inverse_logic)
       d = ~d;
 
@@ -300,9 +288,18 @@ void ss_recv()
     {
 #if _DEBUG // for scope: pulse pin as overflow indictator
       DebugPulse(_DEBUG_PIN1, 1);
+      _DEBUG_PIN1 ^= 1;
 #endif
       ss_buffer_overflow = true;
     }
+
+    #if _DEBUG
+    ss_write( (char)d );
+    ss_write( ':' );
+    ss_write_hex( (int)d );
+    ss_write( '\n' );
+    ss_write( '\r' );
+    #endif
   }
   
 #if GCC_VERSION < 40302
@@ -324,32 +321,15 @@ void ss_recv()
 void ss_tx_pin_write(uint8_t pin_state)
 {
     SER_TX = pin_state;
-#ifdef XXXX
-  if (pin_state == LOW)
-    SER_TX &= ~ss_transmitBitMask;
-  else
-    SER_TX |= ss_transmitBitMask;
-#endif
 }
 
 uint8_t ss_rx_pin_read()
 {
   return SER_RX;
-  //return SER_RX & ss_receiveBitMask;
 }
 
-//
-// Interrupt handling
-//
-//ISR(PCINT2_vect)
-//{
-//  ss_recv();
-//}
-
-void soft_serial(uint8_t rxReg, uint8_t rxBit, uint8_t txReg, uint8_t txBit, uint8_t inverse_logic ) 
+void soft_serial( uint8_t inverse_logic ) 
 {
-  uint8_t vect;
-  
   ss_rx_delay_centering = 0;
   ss_rx_delay_intrabit = 0;
   ss_rx_delay_stopbit = 0;
@@ -357,31 +337,35 @@ void soft_serial(uint8_t rxReg, uint8_t rxBit, uint8_t txReg, uint8_t txBit, uin
   ss_buffer_overflow = false;
   ss_inverse_logic = inverse_logic;
 
-  #if defined(SERIAL_RX_M4)
-  vect = PCINT23;
+  #if defined(SERIAL_RX_M3)
+  PCICR |= _BV(PCIE0);
+  PCMSK0 |= _BV(PCINT0);      // PB0
+  #elif defined(SERIAL_RX_M4)
+  PCICR |= _BV(PCIE2);
+  PCMSK2 |= _BV(PCINT23);      // PD7
   #elif defined(SERIAL_RX_M5)
-  vect = PCINT22;
+  PCICR |= _BV(PCIE2);
+  PCMSK2 |= _BV(PCINT22);      // PD6
   #elif defined(SERIAL_RX_M6)
-  vect = PCINT21;
+  PCICR |= _BV(PCIE2);
+  PCMSK2 |= _BV(PCINT21);      // PD5
   #endif
 
-  PCMSK2 |= _BV(vect);      // PD1
-
-  ss_setTX(txReg, txBit);
-  ss_setRX(rxReg, rxBit);
+  ss_setTX();
+  ss_setRX();
 }
 
-void ss_setTX(uint8_t reg, uint8_t bit)
+void ss_setTX()
 {
   SER_TX_DIR = OUTPUT;
   SER_TX = HIGH;
 }
 
-void ss_setRX(uint8_t reg, uint8_t bit)
+void ss_setRX()
 {
   SER_RX_DIR = INPUT;
   if (!ss_inverse_logic)
-    SER_RX= HIGH;  // pullup for normal logic!
+    SER_RX = HIGH;  // pullup for normal logic!
 }
 
 void ss_begin(long speed)
@@ -404,13 +388,21 @@ void ss_begin(long speed)
   // Set up RX interrupts, but only if we have a valid RX baud rate
   if (ss_rx_delay_stopbit)
   {
-    if (digitalPinToPCICR(ss_receivePin))
-    {
-	*digitalPinToPCICR(ss_receivePin) |= _BV(digitalPinToPCICRbit(ss_receivePin));
-	*digitalPinToPCMSK(ss_receivePin) |= _BV(digitalPinToPCMSKbit(ss_receivePin));
-    }
+#ifdef SERIAL_RX_M4
+      PCMSK2 = _BV( PCINT23 );
+#elif defined(  SERIAL_RX_M5 )
+      PCMSK2 |= _BV( PCINT22 );
+#elif defined(  SERIAL_RX_M6 )
+      PCMSK2 |= _BV( PCINT21 );
+#elif defined(  SERIAL_RX_M3 )
+      PCMSK0 |= _BV( PCINT0 );
+#endif
+
     ss_tunedDelay(ss_tx_delay); // if we were low this establishes the end
   }
+
+  REGISTER_BIT(DDRB,3) = OUTPUT;
+  REGISTER_BIT(DDRB,5) = OUTPUT;
 
 #if _DEBUG
   pinMode(_DEBUG_PIN1, OUTPUT);
@@ -422,8 +414,15 @@ void ss_begin(long speed)
 
 void ss_end()
 {
-    if (digitalPinToPCMSK(ss_receivePin))
-	*digitalPinToPCMSK(ss_receivePin) &= ~_BV(digitalPinToPCMSKbit(ss_receivePin));
+#ifdef SERIAL_RX_M4
+      PCMSK2 &= ~_BV( PCINT23 );
+#elif defined(  SERIAL_RX_M5 )
+      PCMSK2 &= ~_BV( PCINT22 );
+#elif defined(  SERIAL_RX_M6 )
+      PCMSK2 &= ~_BV( PCINT21 );
+#elif defined(  SERIAL_RX_M3 )
+      PCMSK0 &= ~_BV( PCINT0 );
+#endif
 }
 
 // Read data from buffer
@@ -480,6 +479,39 @@ size_t ss_write_num( int n )
     /* value of a for loop variable after a loop. That's */
     /* really good advice however it's ignored here */
     ss_write_str( &buf[++i] );
+
+    return 9 - i;
+}
+
+size_t ss_write_hex( int n )
+{
+  char buf[9];
+  int i, rem;
+
+  buf[8] = 0;
+
+  if( n != 0 ) {
+	  for( i=7; i>0 && n>0; i-- )
+	  {
+		  rem = n%16;
+		  if( rem < 10 )
+		    buf[i] = rem + '0';
+		  else
+		    buf[i] = rem - 10 + 'A';
+
+		  n = n/16;
+	  }
+  } else {
+	  buf[7] = '0';
+	  i=6;
+  }
+
+    /* any good C book will tell you not to use the */
+    /* value of a for loop variable after a loop. That's */
+    /* really good advice however it's ignored here */
+    ss_write_str( &buf[++i] );
+
+    return 9 - i;
 }
 
 size_t ss_write(uint8_t b)
@@ -554,4 +586,125 @@ int ss_peek()
   return ss_receive_buffer[ss_receive_buffer_head];
 }
 
+void setLinvorRate( int32_t rate )
+{
+  char buffer[16], rate_str[16];
+  int i = 0;
+  int c = 0;
+
+  ss_write_str( "AT\r\n" );
+  _delay_ms(1000);
+  do {
+    c = ss_read();
+    if( c != -1 && i < 16 ) 
+      buffer[i++] = c;
+  } while( c != -1 );
+
+  switch( rate ) {
+    case 1200:
+      strcpy( rate_str, "AT+BAUD1\r\n" );
+      break;
+    case 2400:
+      strcpy( rate_str, "AT+BAUD2\r\n" );
+      break;
+    case 4800:
+      strcpy( rate_str, "AT+BAUD3\r\n" );
+      break;
+    case 9600:
+      strcpy( rate_str, "AT+BAUD4\r\n" );
+      break;
+    case 19200:
+      strcpy( rate_str, "AT+BAUD5\r\n" );
+      break;
+    case  38400:
+      strcpy( rate_str, "AT+BAUD6\r\n" );
+      break;
+    case 57600:
+      strcpy( rate_str, "AT+BAUD7\r\n" );
+      break;
+    case 115200L: 
+      strcpy( rate_str, "AT+BAUD8\r\n" );
+      break;
+#ifdef UART_SERIAL
+    case 230400L: 
+      strcpy( rate_str, "AT+BAUD9\r\n" );
+      break;
+    case 460800L:
+      strcpy( rate_str, "AT+BAUDA\r\n" );
+      break;
+    case 921600L: 
+      strcpy( rate_str, "AT+BAUDB\r\n" );
+      break;
+    case 1382400L:
+      strcpy( rate_str, "AT+BAUDC\r\n" );
+      break;
+#endif
+  }
+
+  if( !strncmp( buffer, "OK", 2 ))
+  {
+    i = 0;
+    ss_write_str( rate_str );
+    _delay_ms(1000);
+    do {
+      c = ss_read();
+      if( c != -1 && i < 16 ) 
+        buffer[i++] = c;
+    } while( c != -1 );
+  }
+  else
+  {
+    ss_write_str( "Baud rate setting failed" );
+  }
+
+  if( !strncmp( buffer, "OK", 2 ))
+    soft_serial( 115200L );
+}
+
+void menu( void )
+{
+  int16_t c;
+
+  c = ss_read();
+  if( c != -1 ) {
+    switch( c ) {
+    case 'g':
+      ReadGainPots();
+      ss_write_str( "\r\nPitch gain   = " );
+      ss_write_num( GainInADC[PITCH] );
+      ss_write_str( "\r\nRoll gain    = " );
+      ss_write_num( GainInADC[ROLL] );
+      ss_write_str( "\r\nYaw gain     = " );
+      ss_write_num( GainInADC[YAW] );
+      ss_write( '\r\n' );
+      break;
+    case 'G':
+      ReadGyros();
+      ss_write_str( "\r\nPitch gyro   = " );
+      ss_write_num( gyroADC[PITCH] );
+      ss_write_str( "\r\nRoll gyro    = " );
+      ss_write_num( gyroADC[ROLL] );
+      ss_write_str( "\r\nYaw gyro     = " );
+      ss_write_num( gyroADC[YAW] );
+      ss_write( '\r\n' );
+      break;
+#ifdef SAVE_CENTER
+    case 'S':
+      // this doesn't return
+      receiverStickCenter();
+      break;
+    case 's':
+      ss_write_str( "\r\nRoll Center       = " );
+      ss_write_num( Config.CenterRollValue );
+      ss_write_str( "\r\nPitch Center      = " );
+      ss_write_num( Config.CenterPitchValue );
+      ss_write_str( "\r\nCollector Center  = " );
+      ss_write_num( Config.CenterCollValue );
+      ss_write_str( "\r\nYaw Center         = " );
+      ss_write_num( Config.CenterYawValue );
+      break;
+#endif
+    }
+  }
+}
 #endif
