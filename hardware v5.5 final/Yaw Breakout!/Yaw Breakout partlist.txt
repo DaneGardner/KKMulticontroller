@@ -1,0 +1,13 @@
+Partlist Yaw breakout board
+
+Exported from KK V5.5_Yaw_breakout.sch at 27-10-2010 14:34:29
+
+EAGLE Version 5.8.0 Copyright (c) 1988-2010 CadSoft
+
+Part     Value          Device      Package  Library  Sheet	Remark
+
+C1       4.7 uF         CPOL-EUSMCB SMC_B    rcl      1 	Tantalum B case minimum 6V
+C2       47 uF          CPOL-EUSMCB SMC_B    rcl      1		Tantalum B case minimum 6V
+IC1      ENC-03RC       ENC-03RC    ENC-03RC gyros    1		Murata Gyrostar ENC-03RC Piezo Gyro
+R1       6.8 KOhm       R-EU_R0805  R0805    rcl      1
+
